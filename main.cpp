@@ -29,12 +29,22 @@ int main(int argc, char *argv[])
     TcpServer server;
 
     //tcpserver run in thread, not for sub handler
-    QThread *thread = new QThread();
-    server.moveToThread(thread);
+    // QThread *thread = new QThread();
+    // server.moveToThread(thread);
 
-    QObject::connect(thread, &QThread::finished, &server, &QObject::deleteLater);
+    // QObject::connect(thread, &QThread::finished, &server, &QObject::deleteLater);
 
-    thread->start();
+    // thread->start();
+
+    //improve
+    if (!server.listen(QHostAddress::Any, 1234)) {
+        qDebug() << "network server listen fail!"
+                 << ",error reason:" << server.errorString();
+
+        return 1;
+    } else {
+        qDebug() << "Server started!====";
+    }
 
     qDebug() << "main thread:" << QThread::currentThreadId();
 

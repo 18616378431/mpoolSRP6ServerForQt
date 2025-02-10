@@ -20,18 +20,25 @@ class ClientHandler : public QObject {
     Q_OBJECT
 
 public:
-    ClientHandler(QTcpSocket *socket, QObject *parent = nullptr);
+    // ClientHandler(QTcpSocket *socket, QObject *parent = nullptr);
+    ClientHandler(qintptr socketDescriptor, QObject *parent = nullptr);
     QSqlDatabase getDb();
     bool VerifyVersion(uint8 const* a, int32 aLength, mpool::Crypto::SHA1::Digest const& versionProof, bool isReconnect = false);
     QString GetRemoteIpAddress() const;
+
+public:
+    void start();
 
 private slots:
     void onReadyRead();
 
     void onDisconnected();
+signals:
+    void finished();
 
 private:
     QTcpSocket *socket;
+    qintptr mSocketDescriptor;
 
     std::optional<mpool::Crypto::SRP6> _srp6;
     SessionKey _sessionKey = {};
@@ -47,17 +54,18 @@ private:
     QSqlDatabase db;
 };
 
-class TcpServer : public QObject {
+class TcpServer : public QTcpServer {
     Q_OBJECT
 
 public:
     TcpServer(QObject *parent = nullptr);
 
 private slots:
-    void onNewConnection();
+    // void onNewConnection();
+    void incomingConnection(qintptr socketDescriptor) override;
 
 private:
-    QTcpServer *server;
+    // QTcpServer *server;
 };
 
 #endif // NETWORK_H

@@ -7,12 +7,35 @@
 #include <QSqlDatabase>
 #include <QSqlQuery>
 
-ClientHandler::ClientHandler(QTcpSocket *socket, QObject *parent)
-    : QObject(parent)
-    , socket(socket)
+// ClientHandler::ClientHandler(QTcpSocket *socket, QObject *parent)
+//     : QObject(parent)
+//     , socket(socket)
+// {
+//     connect(socket, &QTcpSocket::readyRead, this, &ClientHandler::onReadyRead);
+//     connect(socket, &QTcpSocket::disconnected, this, &ClientHandler::onDisconnected);
+// }
+//improve
+ClientHandler::ClientHandler(qintptr socketDescriptor, QObject *parent) :
+    QObject(parent),
+    mSocketDescriptor(socketDescriptor)
 {
+
+}
+
+void ClientHandler::start()
+{
+    socket = new QTcpSocket();
+    if (!socket->setSocketDescriptor(mSocketDescriptor))
+    {
+        qDebug() << "Error setting descriptor" << socket->errorString();
+        deleteLater();
+        return ;
+    }
+
     connect(socket, &QTcpSocket::readyRead, this, &ClientHandler::onReadyRead);
     connect(socket, &QTcpSocket::disconnected, this, &ClientHandler::onDisconnected);
+
+    qDebug() << "new connection from " << socket->peerAddress().toString() << " in thread:" << QThread::currentThreadId();
 }
 
 QSqlDatabase ClientHandler::getDb()
@@ -277,6 +300,7 @@ void ClientHandler::onDisconnected()
     qDebug() << "Client disconnected";
     qDebug() << "ClientHandler thread:" << QThread::currentThreadId();
     socket->deleteLater();
+    emit finished();
     deleteLater();
 }
 
@@ -321,33 +345,49 @@ QString ClientHandler::GetRemoteIpAddress() const
     return socket->peerAddress().toString();
 }
 
-TcpServer::TcpServer(QObject *parent)
-    : QObject(parent)
-    , server(new QTcpServer(this))
+TcpServer::TcpServer(QObject *parent) : QTcpServer(parent)
+    // : QObject(parent)
+    // , server(new QTcpServer(this))
 {
-    connect(server, &QTcpServer::newConnection, this, &TcpServer::onNewConnection);
+    // connect(server, &QTcpServer::newConnection, this, &TcpServer::onNewConnection);
 
-    if (!server->listen(QHostAddress::Any, 1234)) {
-        qDebug() << "network server listen fail!"
-                 << ",error reason:" << server->errorString();
-        return;
-    } else {
-        qDebug() << "Server started!====";
-    }
+    // if (!server->listen(QHostAddress::Any, 1234)) {
+    //     qDebug() << "network server listen fail!"
+    //              << ",error reason:" << server->errorString();
+    //     return;
+    // } else {
+    //     qDebug() << "Server started!====";
+    // }
 }
 
-void TcpServer::onNewConnection()
+// void TcpServer::onNewConnection()
+// {
+//     QTcpSocket *socket = server->nextPendingConnection();
+
+//     // QThread *thread = new QThread();
+
+//     qDebug() << "new conn" << QThread::currentThreadId();
+
+//     ClientHandler *handler = new ClientHandler(socket, this);
+//     // handler->moveToThread(thread);
+
+//     // connect(thread, &QThread::finished, handler, &QObject::deleteLater);
+
+//     // thread->start();
+// }
+
+void TcpServer::incomingConnection(qintptr socketDescriptor)
 {
-    QTcpSocket *socket = server->nextPendingConnection();
+    QThread *thread = new QThread();
+    ClientHandler *handler = new ClientHandler(socketDescriptor);
+    handler->moveToThread(thread);
 
-    // QThread *thread = new QThread();
+    connect(thread, &QThread::started, handler, &ClientHandler::start);
+    connect(handler, &ClientHandler::finished, thread, &QThread::quit);
+    connect(thread, &QThread::finished, thread, &QThread::deleteLater);
+    connect(thread, &QThread::finished, handler, &ClientHandler::deleteLater);
 
-    qDebug() << "new conn" << QThread::currentThreadId();
+    thread->start();
 
-    ClientHandler *handler = new ClientHandler(socket, this);
-    // handler->moveToThread(thread);
-
-    // connect(thread, &QThread::finished, handler, &QObject::deleteLater);
-
-    // thread->start();
+    qDebug() << "new connection handle in new thread";
 }
